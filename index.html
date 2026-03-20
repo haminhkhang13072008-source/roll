@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Retro Memories - Elements Pro</title>
+    <link href="https://fonts.googleapis.com/css2?family=Courier+Prime&family=Special+Elite&display=swap" rel="stylesheet">
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    <style>
+        :root { --paper: #f4f1ea; --brown: #4a3f35; --accent: #e67e22; --green: #27ae60; --dark: #1a1a1a; }
+        body { font-family: 'Courier Prime', monospace; background: var(--paper); color: var(--brown); margin: 0; padding: 0; display: flex; justify-content: center; min-height: 100vh; overflow-x: hidden; }
+        
+        .card { background: #fffdf5; padding: 15px; max-width: 500px; width: 100%; border: 1px solid #d9d4c5; position: relative; padding-bottom: 120px; box-shadow: 0 0 50px rgba(0,0,0,0.1); }
+        .film-strip { background: #111; padding: 40px 10px; display: flex; flex-direction: column; gap: 30px; margin: 20px 0; border-left: 10px dashed #222; border-right: 10px dashed #222; position: relative; z-index: 1; }
+        .polaroid { background: white; padding: 10px 10px 35px 10px; box-shadow: 5px 5px 15px rgba(0,0,0,0.5); position: relative; }
+        .polaroid img { width: 100%; aspect-ratio: 1/1; object-fit: cover; display: block; }
+
+        /* Sticker Engine */
+        .sticker-wrapper { position: absolute; z-index: 100; touch-action: none; display: inline-block; padding: 15px; }
+        .sticker-img { width: 100px; display: block; pointer-events: none; }
+        .sticker-controls { display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0; border: 2px dashed var(--accent); pointer-events: none; }
+        .edit-mode-on .sticker-wrapper.active .sticker-controls { display: block; }
+        
+        .s-btn { position: absolute; width: 32px; height: 32px; background: white; border: 2px solid var(--brown); border-radius: 50%; display: flex; justify-content: center; align-items: center; cursor: pointer; z-index: 110; pointer-events: auto; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        .s-del { top: -16px; left: -16px; color: red; }
+        .s-size { bottom: -16px; right: -16px; color: var(--green); cursor: nwse-resize; font-size: 18px; }
+
+        /* Nút Bút Chì Nổi (Floating Action Button) */
+        .btn-edit-float { position: fixed; bottom: 30px; right: 30px; width: 65px; height: 65px; background: var(--dark); color: white; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 28px; cursor: pointer; z-index: 2500; box-shadow: 0 8px 20px rgba(0,0,0,0.4); border: 2px solid white; transition: 0.3s; }
+        .is-editing { background: var(--green) !important; transform: scale(1.1) rotate(360deg); }
+
+        /* Kho Elements Canva Style */
+        #sticker-store { display: none; position: fixed; bottom: 0; left: 0; width: 100%; height: 80vh; background: #fff; z-index: 3000; border-radius: 25px 25px 0 0; box-shadow: 0 -15px 50px rgba(0,0,0,0.5); padding: 25px; box-sizing: border-box; flex-direction: column; }
+        .store-header { display: flex; gap: 12px; margin-bottom: 20px; }
+        #searchStk { flex: 1; padding: 15px; border: 2px solid #f0f0f0; border-radius: 15px; font-size: 16px; outline: none; background: #f9f9f9; font-family: inherit; }
+        .stk-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; overflow-y: auto; flex: 1; padding-bottom: 50px; }
+        .stk-item { width: 100%; aspect-ratio: 1/1; object-fit: contain; cursor: pointer; background: #f5f5f5; border-radius: 12px; transition: 0.2s; border: 1px solid #eee; }
+        .stk-item:active { transform: scale(0.9); }
+
+        .btn-retro { background: var(--brown); color: var(--paper); border: none; padding: 18px; cursor: pointer; font-weight: bold; text-transform: uppercase; width: 100%; margin-top: 10px; font-family: inherit; font-size: 13px; border-radius: 5px; box-shadow: 0 4px 0 #222; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2 style="font-family: 'Special Elite'; text-align: center; font-size: 28px;">MEMORY ROLL</h2>
+    
+    <div id="lock-screen">
+        <center><input type="password" id="passInput" placeholder="Mã bí mật" style="width:80%; padding:15px; margin:30px 0; border:2px solid #eee; border-radius:10px; text-align:center; font-size:18px;"></center>
+        <button class="btn-retro" onclick="unlock()">GIẢI MÃ KỶ NIỆM</button>
+    </div>
+
+    <div id="main-screen" style="display:none;">
+        <div id="gallery-container" style="position: relative; min-height: 400px;">
+            <div id="gallery" class="film-strip"></div>
+        </div>
+        <button class="btn-retro" onclick="document.getElementById('fileInp').click()">📸 CHỤP ẢNH MỚI</button>
+        <button class="btn-retro" style="background: var(--accent)" onclick="openStickerStore()">✨ TRANG TRÍ ELEMENTS</button>
+        <input type="file" id="fileInp" accept="image/*" style="display:none" onchange="uploadToCloudinary()">
+    </div>
+</div>
+
+<div id="editBtn" class="btn-edit-float" onclick="toggleEditMode()" style="display:none;">✎</div>
+
+<div id="sticker-store">
+    <div class="store-header">
+        <input type="text" id="searchStk" placeholder="Tìm Elements (Y2K, Heart, Meme...)">
+        <button onclick="searchGiphy()" style="padding: 15px 25px; background: var(--dark); color: white; border:none; border-radius:12px; font-weight:bold;">TÌM</button>
+        <button onclick="closeStickerStore()" style="font-size: 30px; background:none; border:none; padding:0 10px;">×</button>
+    </div>
+    <div class="stk-grid" id="stkResult"></div>
+</div>
+
+<script>
+    // --- FIREBASE CONFIG (Giữ nguyên của bạn) ---
+    const firebaseConfig = {
+        apiKey: "AIzaSyA8-ctuFLh3DuB68g180CEux7iZ2ZKqYMU",
+        authDomain: "lovetouching-a8981.firebaseapp.com",
+        projectId: "lovetouching-a8981",
+        appId: "1:325823794583:web:6b190f660d75b7e547c8d2"
+    };
+    const CLOUD_NAME = "dvvso2wpc";
+    const UPLOAD_PRESET = "stodjvzb";
+    // API KEY GIPHY - Nếu không chạy, hãy thay bằng Key cá nhân của bạn
+    const GIPHY_API_KEY = "dc6zaTOxFJmzC"; 
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    const urlParams = new URLSearchParams(window.location.search);
+    const chipId = urlParams.get('id') || 'demo_vintage';
+
+    let currentImages = [];
+    let currentStickers = [];
+    let isEditMode = false;
+
+    async function unlock() {
+        const passVal = document.getElementById('passInput').value;
+        const doc = await db.collection('toys').doc(chipId).get();
+        if (doc.exists && passVal === doc.data
